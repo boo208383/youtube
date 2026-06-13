@@ -126,3 +126,21 @@ if st.sidebar.button("분석 시작 🚀"):
                         ax.axis("off")
                         st.pyplot(fig)
                     else:
+                        st.info("댓글에서 추출된 유의미한 키워드가 없습니다.")
+                        
+                with col2:
+                    st.subheader("🔝 주요 키워드 TOP 10")
+                    if all_nouns:
+                        df_counts = pd.DataFrame(word_counts.most_common(10), columns=['키워드', '빈도수'])
+                        st.dataframe(df_counts, use_container_width=True)
+                        st.bar_chart(df_counts.set_index('키워드'))
+                
+                st.markdown("---")
+                
+                # --- 좋아요 순 베스트 댓글 ---
+                st.subheader("🔥 가장 많은 공감을 얻은 댓글 (좋아요 기준)")
+                df_sorted = df.sort_values(by="likes", ascending=False).head(5)
+                for idx, row in df_sorted.iterrows():
+                    st.info(f"👍 **좋아요 {row['likes']}개** \n\n {row['comment']}")
+            else:
+                st.error("댓글 수집에 실패했습니다. 영상 설정을 확인해 주세요.")
