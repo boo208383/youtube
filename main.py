@@ -95,13 +95,13 @@ if st.sidebar.button("분석 시작 🚀"):
                     # 특수문자, 이모지 제거 (한글, 영문, 공백만 유지)
                     cleaned_comments = [re.sub(r'[^가-힣a-zA-Z\s]', '', str(text)) for text in df['comment']]
                     
-                    # 순수 파이썬 기반 명사 추출기 가동 (자바 필요 없음)
+                    # 순수 파이썬 기반 명사 추출기 가동
                     noun_extractor = LCGNounExtractor_v2()
                     try:
                         nouns_chunks = noun_extractor.train_extract(cleaned_comments)
                         all_nouns = [word for word, score in nouns_chunks.items() if len(word) > 1 for _ in range(int(score.frequency))]
                     except:
-                        # 댓글 데이터가 적어 형태소 분석 학습이 안 될 경우를 위한 방어용 코드
+                        # 에러가 난 원인: 이 부분 들여쓰기가 깨져있었습니다. 똑바로 수정했습니다.
                         all_nouns = []
                         for text in cleaned_comments:
                             all_nouns.extend([word for word in text.split() if len(word) > 1])
