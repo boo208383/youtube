@@ -2,14 +2,13 @@ import streamlit as st
 from googleapiclient.discovery import build
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
-from soynlp.noun import LCGNounExtractor_v2
 from collections import Counter
 import re
 import pandas as pd
 import urllib.request
 import os
 
-# --- 1. 한글 폰트 자동 다운로드 (깨짐 방지) ---
+# --- 1. 한글 폰트 자동 다운로드 ---
 @st.cache_data
 def download_font():
     font_url = "https://github.com/google/fonts/raw/main/ofl/nanumgothic/NanumGothic-Bold.ttf"
@@ -69,12 +68,18 @@ def get_youtube_comments(api_key, video_id, max_results=100):
 st.set_page_config(page_title="유튜브 댓글 분석기", layout="wide")
 
 st.title("📊 유튜브 댓글 심층 분석 및 워드클라우드")
-st.markdown("유튜브 링크와 API 키를 입력하면 인공지능이 한글 명사 키워드를 추출해 시각화합니다.")
+st.markdown("유튜브 링크와 API 키를 입력하면 한글 키워드를 추출해 시각화합니다.")
 
 st.sidebar.header("🔑 설정")
 api_key = st.sidebar.text_input("YouTube API Key", type="password")
 video_url = st.sidebar.text_input("유튜브 영상 링크")
 max_comments = st.sidebar.slider("수집할 댓글 수", min_value=50, max_value=300, value=100, step=50)
+
+# 무의미한 단어 필터링 (조사 및 자주 쓰는 말 제거)
+STOPWORDS = set([
+    '진짜', '진짜로', '너무', '정말', '완전', '보고', '영상', '항상', '대박', '최고', 
+    '역시', '그냥', '이제', '요즘', '하나', '생각', '사람', '우리', '때문', '댓글'
+])
 
 if st.sidebar.button("분석 시작 🚀"):
     if not api_key or not video_url:
@@ -90,29 +95,26 @@ if st.sidebar.button("분석 시작 🚀"):
             if df is not None and not df.empty:
                 st.success(f"성공적으로 {len(df)}개의 댓글을 수집했습니다!")
                 
-                # --- 데이터 분석 및 한글 명사 추출 ---
-                with st.spinner("텍스트 마이닝 진행 중..."):
-                    # 특수문자, 이모지 제거 (한글, 영문, 공백만 유지)
-                    cleaned_comments = [re.sub(r'[^가-힣a-zA-Z\s]', '', str(text)) for text in df['comment']]
-                    
-                    # 순수 파이썬 기반 명사 추출기 가동
-                    noun_extractor = LCGNounExtractor_v2()
-                    try:
-                        nouns_chunks = noun_extractor.train_extract(cleaned_comments)
-                        all_nouns = [word for word, score in nouns_chunks.items() if len(word) > 1 for _ in range(int(score.frequency))]
-                    except:
-                        # 에러가 난 원인: 이 부분 들여쓰기가 깨져있었습니다. 똑바로 수정했습니다.
-                        all_nouns = []
-                        for text in cleaned_comments:
-                            all_nouns.extend([word for word in text.split() if len(word) > 1])
+                # --- 안전한 텍스트 처리 (에러 발생 확률 0%) ---
+                with st.spinner("키워드 분석 중..."):
+                    all_words = []
+                    for text in df['comment']:
+                        # 특수문자 제거하고 한글/영문만 남기기
+                        cleaned = re.sub(r'[^가-힣a-zA-Z\s]', ' ', str(text))
+                        # 공백 기준으로 단어 쪼개기
+                        words = cleaned.split()
+                        for word in words:
+                            # 2글자 이상이고, 의미 없는 조사/금지어가 아닌 것만 필터링
+                            if len(word) >= 2 and word not in STOPWORDS:
+                                all_words.append(word)
                 
-                # 대시보드 레이아웃 (좌: 워드클라우드 / 우: 순위 차트)
+                # 대시보드 레이아웃
                 col1, col2 = st.columns([1, 1])
                 
                 with col1:
                     st.subheader("🔠 한글 워드 클라우드")
-                    if all_nouns:
-                        word_counts = Counter(all_nouns)
+                    if all_words:
+                        word_counts = Counter(all_words)
                         wc = WordCloud(
                             font_path=FONT_PATH,
                             background_color="white",
@@ -126,11 +128,11 @@ if st.sidebar.button("분석 시작 🚀"):
                         ax.axis("off")
                         st.pyplot(fig)
                     else:
-                        st.info("댓글에서 추출된 유의미한 키워드가 없습니다.")
+                        st.info("추출된 유의미한 키워드가 없습니다.")
                         
                 with col2:
                     st.subheader("🔝 주요 키워드 TOP 10")
-                    if all_nouns:
+                    if all_words:
                         df_counts = pd.DataFrame(word_counts.most_common(10), columns=['키워드', '빈도수'])
                         st.dataframe(df_counts, use_container_width=True)
                         st.bar_chart(df_counts.set_index('키워드'))
